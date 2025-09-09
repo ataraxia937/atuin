@@ -1,0 +1,31 @@
+
+name: Backup to S3
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Archive repository
+        timeout-minutes: 2
+        run: |-
+          zip -r "$HOME/${{ github.event.repository.name }}-$(date +%Y%m%dT%H%M%S).zip" .git
+
+      - name: Upload archive to S3
+        timeout-minutes: 2
+        run: |-
+          export AWS_ACCESS_KEY_ID="${{ secrets.ACCESS_KEY }}"
+          export AWS_SECRET_ACCESS_KEY="${{ secrets.SECRET_KEY }}"
+          export AWS_REGION="${{ secrets.REGION }}"
+          export AWS_DEFAULT_REGION="$AWS_REGION"
+          aws s3 cp $HOME/${{ github.event.repository.name }}-*.zip s3://${{ secrets.BUCKET }}/${{ github.event.repository.name }}/
