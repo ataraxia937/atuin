@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use atuin_common::utils::{self, Escapable as _};
+use atuin_common::{shell::Shell, utils::Escapable as _};
 use eyre::Result;
 use futures_util::FutureExt;
 use semver::Version;
@@ -749,6 +749,7 @@ impl State {
                     indicator.as_str(),
                     theme,
                     history_highlighter,
+                    settings.show_numeric_shortcuts,
                 );
                 f.render_stateful_widget(results_list, results_list_chunk, &mut self.results_state);
             }
@@ -885,6 +886,7 @@ impl State {
         .alignment(Alignment::Right)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn build_results_list<'a>(
         style: StyleState,
         results: &'a [History],
@@ -893,6 +895,7 @@ impl State {
         indicator: &'a str,
         theme: &'a Theme,
         history_highlighter: HistoryHighlighter<'a>,
+        show_numeric_shortcuts: bool,
     ) -> HistoryList<'a> {
         let results_list = HistoryList::new(
             results,
@@ -902,6 +905,7 @@ impl State {
             indicator,
             theme,
             history_highlighter,
+            show_numeric_shortcuts,
         );
 
         if style.compact {
@@ -1265,14 +1269,16 @@ pub async fn history(
     match result {
         InputAction::Accept(index) if index < results.len() => {
             let mut command = results.swap_remove(index).command;
-            if accept
-                && (utils::is_zsh() || utils::is_fish() || utils::is_bash() || utils::is_xonsh())
+
+            if is_command_chaining {
+                command = format!("{} {}", original_query.trim_end(), command);
+            } else if accept
+                && matches!(
+                    Shell::from_env(),
+                    Shell::Zsh | Shell::Fish | Shell::Bash | Shell::Xonsh
+                )
             {
-                if is_command_chaining {
-                    command = String::from("__atuin_chain_command__:") + &command;
-                } else {
-                    command = String::from("__atuin_accept__:") + &command;
-                }
+                command = String::from("__atuin_accept__:") + &command;
             }
 
             // index is in bounds so we return that entry
